@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,8 +12,10 @@ import { columns } from '@/components/columns';
 import { formatDistanceToNow } from 'date-fns';
 import { LogDetailDrawer } from '@/components/log-detail-drawer';
 import logData from '@/data/logs.json';
+import graphqlLogs from '@/data/graphql_logs.json';
 import { Bar, BarChart, Line, LineChart, Pie, PieChart, CartesianGrid, XAxis, YAxis, Legend } from 'recharts';
-import type { LogData } from '@/types';
+import type { GraphQLLogData, HttpLogData } from '@/types';
+import { graphqlColumns } from '@/components/graphql-columns';
 
 // Chart configs
 const methodChartConfig = {
@@ -41,10 +43,10 @@ const barChartConfig = {
 const performanceChartConfig = {
   value: { color: 'hsl(var(--chart-2))', label: 'Response Time' },
 };
-const logs: LogData[] = logData as any;
+const logs: HttpLogData[] = logData as any;
+const graphqlLogsData: GraphQLLogData[] = graphqlLogs as any;
 export default function AnalyticsDashboard() {
   const [timeRange, setTimeRange] = useState('all');
-  const [isLoading, setIsLoading] = useState(true);
 
   // Process the log data for visualization
   const processedData = {
@@ -52,7 +54,13 @@ export default function AnalyticsDashboard() {
     methods: {} as Record<string, number>,
     statusCodes: {} as Record<string, number>,
     responseTimesByEndpoint: {} as Record<string, number[]>,
-    timelineData: [] as { timestamp: Date; endpoint: string; method: string; statusCode: number; responseTime: number }[],
+    timelineData: [] as {
+      timestamp: Date;
+      endpoint: string;
+      method: string;
+      statusCode: number;
+      responseTime: number;
+    }[],
     userAgents: {} as Record<string, number>,
   };
 
@@ -91,6 +99,82 @@ export default function AnalyticsDashboard() {
     // User agents
     processedData.userAgents[userAgent] = (processedData.userAgents[userAgent] || 0) + 1;
   });
+
+  // Process GraphQL log data for visualization
+  const graphqlMetrics = {
+    operations: {} as Record<string, number>,
+    responseTimesByOperation: {} as Record<string, number[]>,
+    timelineData: [] as { timestamp: Date; operation: string; duration: number }[],
+    userAgents: {} as Record<string, number>,
+  };
+
+  graphqlLogsData.forEach((log) => {
+    const operation = log.operationName || 'unknown';
+    const duration = typeof log.duration === 'number' ? log.duration : 0;
+    const timestamp = new Date(log.timestamp);
+    const userAgent = log.userAgent || 'Unknown';
+
+    // Count operations
+    graphqlMetrics.operations[operation] = (graphqlMetrics.operations[operation] || 0) + 1;
+
+    // Track response times by operation
+    if (!graphqlMetrics.responseTimesByOperation[operation]) {
+      graphqlMetrics.responseTimesByOperation[operation] = [];
+    }
+    graphqlMetrics.responseTimesByOperation[operation].push(duration);
+
+    // Timeline data
+    if (operation !== 'unknown') {
+      graphqlMetrics.timelineData.push({
+        timestamp,
+        operation,
+        duration,
+      });
+    }
+
+    // User agents
+    graphqlMetrics.userAgents[userAgent] = (graphqlMetrics.userAgents[userAgent] || 0) + 1;
+  });
+
+  // Prepare GraphQL chart data
+  const operationChartData = Object.entries(graphqlMetrics.operations)
+    .map(([name, count]) => ({
+      name: name === 'unknown' ? 'Unknown' : name,
+      value: count,
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  // Calculate average response times by operation
+  const avgGraphQLResponseTimes = Object.entries(graphqlMetrics.responseTimesByOperation)
+    .map(([operation, times]) => {
+      const avg = times.reduce((sum, time) => sum + time, 0) / times.length;
+      return {
+        name: operation === 'unknown' ? 'Unknown' : operation,
+        value: avg,
+      };
+    })
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  // Timeline data for GraphQL operations
+  const graphqlTimelineData = graphqlMetrics.timelineData
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map((item) => ({
+      name: formatDistanceToNow(item.timestamp, { addSuffix: true }),
+      value: item.duration,
+      operation: item.operation,
+    }))
+    .slice(-20); // Show last 20 requests
+
+  // Define chart config for GraphQL metrics
+  const graphqlOperationChartConfig = {
+    value: { color: 'hsl(var(--chart-1))', label: 'Operations' },
+  };
+
+  const graphqlPerformanceChartConfig = {
+    value: { color: 'hsl(var(--chart-2))', label: 'Response Time' },
+  };
 
   // Prepare chart data
   const endpointChartData = Object.entries(processedData.endpoints)
@@ -168,8 +252,11 @@ export default function AnalyticsDashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{logs.length}</div>
-            <p className="text-xs text-muted-foreground">+{Math.floor(logs.length * 0.12)} from last period</p>
+            <div className="text-2xl font-bold">{logs.length + graphqlLogsData.length}</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-foreground font-medium">{logs.length}</span> HTTP /
+              <span className="text-foreground font-medium"> {graphqlLogsData.length}</span> GraphQL
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -181,7 +268,18 @@ export default function AnalyticsDashboard() {
             <div className="text-2xl font-bold">
               {logs.length > 0 ? (logs.reduce((sum, log) => sum + log.response.time, 0) / logs.length).toFixed(2) : 0} ns
             </div>
-            <p className="text-xs text-muted-foreground">-12% from last period</p>
+            <div className="text-xs text-muted-foreground">
+              GraphQL:{' '}
+              {graphqlLogsData.length > 0
+                ? (
+                    graphqlLogsData
+                      .filter((log) => typeof log.duration === 'number')
+                      .reduce((sum, log) => sum + (log.duration || 0), 0) /
+                      graphqlLogsData.filter((log) => typeof log.duration === 'number').length || 1
+                  ).toFixed(2)
+                : 0}{' '}
+              ms
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -216,7 +314,9 @@ export default function AnalyticsDashboard() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="logs">Raw Logs</TabsTrigger>
+          <TabsTrigger value="http-logs">HTTP Raw Logs</TabsTrigger>
+          <TabsTrigger value="graphql-metrics">GraphQL Metrics</TabsTrigger>
+          <TabsTrigger value="graphql-logs">GraphQL Raw Logs</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -357,14 +457,108 @@ export default function AnalyticsDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="logs">
+        <TabsContent value="http-logs">
           <Card>
             <CardHeader>
-              <CardTitle>Raw Log Data</CardTitle>
-              <CardDescription>Detailed view of all API requests</CardDescription>
+              <CardTitle>HTTP Raw Logs</CardTitle>
+              <CardDescription>Detailed view of all HTTP API requests</CardDescription>
             </CardHeader>
             <CardContent>
               <DataTable columns={columns} data={logs} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="graphql-metrics" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 mb-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>GraphQL Operations</CardTitle>
+                <CardDescription>Distribution of operation types</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                {graphqlLogsData.length > 0 && operationChartData.length > 0 ? (
+                  <ChartContainer config={graphqlOperationChartConfig} className="aspect-auto h-full w-full">
+                    <BarChart data={operationChartData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis dataKey="name" type="category" width={150} />
+                      <ChartTooltip content={<ChartTooltipContent formatter={(value) => [`${value} calls`, 'Count']} />} />
+                      <Bar dataKey="value" />
+                    </BarChart>
+                  </ChartContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">No GraphQL operations data available</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>GraphQL Performance</CardTitle>
+                <CardDescription>Average response time by operation (ms)</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                {graphqlLogsData.length > 0 && avgGraphQLResponseTimes.length > 0 ? (
+                  <ChartContainer config={graphqlPerformanceChartConfig} className="aspect-auto h-full w-full">
+                    <BarChart data={avgGraphQLResponseTimes} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis dataKey="name" type="category" width={150} />
+                      <ChartTooltip
+                        content={<ChartTooltipContent formatter={(value) => [`${value.toFixed(2)} ms`, 'Avg. Response Time']} />}
+                      />
+                      <Bar dataKey="value" />
+                    </BarChart>
+                  </ChartContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">No GraphQL performance data available</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>GraphQL Timeline</CardTitle>
+              <CardDescription>Response times over recent GraphQL operations (ms)</CardDescription>
+            </CardHeader>
+            <CardContent className="h-80">
+              {graphqlLogsData.length > 0 && graphqlTimelineData.length > 0 ? (
+                <ChartContainer config={graphqlPerformanceChartConfig} className="aspect-auto h-full w-full">
+                  <LineChart data={graphqlTimelineData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis width={60} />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          formatter={(value, name, item) => [`${value.toFixed(2)} ms`, `${item.payload.operation}`]}
+                        />
+                      }
+                    />
+                    <Line type="monotone" dataKey="value" />
+                  </LineChart>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No GraphQL timeline data available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="graphql-logs">
+          <Card>
+            <CardHeader>
+              <CardTitle>GraphQL Raw Logs</CardTitle>
+              <CardDescription>Detailed view of all GraphQL API requests</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable columns={graphqlColumns} data={graphqlLogsData} />
             </CardContent>
           </Card>
         </TabsContent>

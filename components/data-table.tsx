@@ -1,6 +1,6 @@
-"use client"
+'use client';
 
-import { useState } from "react"
+import { useState } from 'react';
 import {
   type ColumnDef,
   flexRender,
@@ -11,22 +11,22 @@ import {
   useReactTable,
   type ColumnFiltersState,
   getFilteredRowModel,
-} from "@tanstack/react-table"
+} from '@tanstack/react-table';
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[]
-  data: TData[]
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
 }
 
 export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pageSize, setPageSize] = useState(10)
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [pageSize, setPageSize] = useState(10);
 
   const table = useReactTable({
     data,
@@ -45,24 +45,43 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         pageSize,
       },
     },
-  })
-
+  });
+  console.log(columns.some((col) => col.accessorKey === 'request.url.path'));
   return (
     <div>
       <div className="flex items-center justify-between py-4">
         <div className="flex items-center gap-2">
-          <Input
-            placeholder="Filter endpoints..."
-            value={(table.getColumn("endpoint")?.getFilterValue() as string) ?? ""}
-            onChange={(event) => table.getColumn("endpoint")?.setFilterValue(event.target.value)}
-            className="max-w-sm"
-          />
-          <Input
-            placeholder="Filter by method..."
-            value={(table.getColumn("request.method")?.getFilterValue() as string) ?? ""}
-            onChange={(event) => table.getColumn("request.method")?.setFilterValue(event.target.value)}
-            className="max-w-[120px]"
-          />
+          {columns.some((col) => col.accessorKey === 'request.url.path') ? (
+            <>
+              <Input
+                placeholder="Filter endpoints..."
+                value={(table.getColumn('endpoint')?.getFilterValue() as string) ?? ''}
+                onChange={(event) => table.getColumn('endpoint')?.setFilterValue(event.target.value)}
+                className="max-w-sm"
+              />
+              <Input
+                placeholder="Filter by method..."
+                value={(table.getColumn('request.method')?.getFilterValue() as string) ?? ''}
+                onChange={(event) => table.getColumn('request.method')?.setFilterValue(event.target.value)}
+                className="max-w-[120px]"
+              />
+            </>
+          ) : (
+            <>
+              <Input
+                placeholder="Filter operations..."
+                value={(table.getColumn('operationName')?.getFilterValue() as string) ?? ''}
+                onChange={(event) => table.getColumn('operationName')?.setFilterValue(event.target.value)}
+                className="max-w-sm"
+              />
+              <Input
+                placeholder="Filter queries..."
+                value={(table.getColumn('query')?.getFilterValue() as string) ?? ''}
+                onChange={(event) => table.getColumn('query')?.setFilterValue(event.target.value)}
+                className="max-w-[200px]"
+              />
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Rows per page</span>
@@ -89,7 +108,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                     <TableHead key={header.id}>
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
-                  )
+                  );
                 })}
               </TableRow>
             ))}
@@ -99,9 +118,9 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
+                  data-state={row.getIsSelected() && 'selected'}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => window.dispatchEvent(new CustomEvent("view-log-details", { detail: row.original }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent('view-log-details', { detail: row.original }))}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
@@ -120,22 +139,17 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
       </div>
       <div className="flex items-center justify-between space-x-2 py-4">
         <div className="text-sm text-muted-foreground">
-          Showing{" "}
+          Showing{' '}
           {table.getFilteredRowModel().rows.length > 0
             ? `${table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-${Math.min(
                 (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
                 table.getFilteredRowModel().rows.length,
               )}`
-            : "0"}{" "}
+            : '0'}{' '}
           of {table.getFilteredRowModel().rows.length} results
         </div>
         <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
+          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
             Previous
           </Button>
           <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
@@ -144,6 +158,5 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         </div>
       </div>
     </div>
-  )
+  );
 }
-

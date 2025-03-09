@@ -1,4 +1,4 @@
-export type LogData = {
+export type HttpLogData = {
   _id: {
     $oid: string;
   };
@@ -23,5 +23,25 @@ export type LogData = {
     headers: Record<string, string>;
     message: string;
   };
+  timestamp: string;
+};
+
+export type GraphQLLogData = {
+  _id: {
+    $oid: string;
+  };
+  level: 30;
+  time: 1741388100783;
+  pid: 17011;
+  hostname: string;
+  requestID: string;
+  operationName: string;
+  query: string;
+  response: any;
+  duration: 42.060375;
+  variables: string;
+  userAgent: string;
+  userId: string;
+  message: string;
   timestamp: string;
 };

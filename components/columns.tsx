@@ -25,7 +25,6 @@ export const columns: ColumnDef<any>[] = [
   {
     accessorKey: 'request.method',
     header: 'Method',
-
     cell: ({ row }) => {
       const method = row.original.request.method as string;
       return (
@@ -54,7 +53,7 @@ export const columns: ColumnDef<any>[] = [
     header: 'Status',
     cell: ({ row }) => {
       const statusCode = row.original.response.status_code as number;
-      return <Badge variant={statusCode < 300 ? 'success' : statusCode < 400 ? 'warning' : 'destructive'}>{statusCode}</Badge>;
+      return <Badge variant={statusCode < 300 ? 'secondary' : statusCode < 400 ? 'outline' : 'destructive'}>{statusCode}</Badge>;
     },
   },
   {
